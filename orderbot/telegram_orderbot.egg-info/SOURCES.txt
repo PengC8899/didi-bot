@@ -1,0 +1,6 @@
+pyproject.toml
+telegram_orderbot.egg-info/PKG-INFO
+telegram_orderbot.egg-info/SOURCES.txt
+telegram_orderbot.egg-info/dependency_links.txt
+telegram_orderbot.egg-info/requires.txt
+telegram_orderbot.egg-info/top_level.txt

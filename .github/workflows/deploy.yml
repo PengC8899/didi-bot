@@ -1,0 +1,254 @@
+name: Deploy to VPS
+
+# 触发条件
+on:
+  push:
+    branches: [ main, master ]  # 推送到主分支时触发
+  workflow_dispatch:  # 手动触发
+    inputs:
+      deployment_type:
+        description: '部署类型'
+        required: true
+        default: 'git'
+        type: choice
+        options:
+        - git
+        - docker
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+
+# 环境变量
+env:
+  IMAGE_NAME: ddgl-orderbot
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # 代码质量检查
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Code formatting check
+      run: |
+        black --check orderbot/
+        isort --check-only orderbot/
+
+    - name: Lint with flake8
+      run: |
+        flake8 orderbot/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 orderbot/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+  # Git部署
+  deploy-git:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deployment_type == 'git' || github.event.inputs.deployment_type == ''
+    
+    steps:
+    - name: Deploy via Git
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          set -e
+          
+          # 项目路径
+          PROJECT_PATH="/home/${{ secrets.VPS_USER }}/DDGL_bot"
+          
+          echo "🔄 开始Git部署..."
+          
+          # 克隆或更新代码
+          if [ ! -d "$PROJECT_PATH" ]; then
+            echo "📥 克隆代码仓库..."
+            git clone ${{ secrets.REPO_URL }} "$PROJECT_PATH"
+          else
+            echo "🔄 更新代码..."
+            cd "$PROJECT_PATH"
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
+          fi
+          
+          cd "$PROJECT_PATH"
+          
+          # 检查.env文件
+          if [ ! -f ".env" ]; then
+            if [ -f ".env.example" ]; then
+              cp .env.example .env
+              echo "⚠️  已创建.env文件，请检查配置！"
+            else
+              echo "❌ 未找到.env文件！"
+              exit 1
+            fi
+          fi
+          
+          # 停止现有服务
+          echo "🛑 停止现有服务..."
+          docker-compose down || true
+          
+          # 构建并启动服务
+          echo "🔨 构建并启动服务..."
+          docker-compose up -d --build
+          
+          # 等待服务启动
+          echo "⏳ 等待服务启动..."
+          sleep 15
+          
+          # 检查服务状态
+          echo "🔍 检查服务状态..."
+          docker-compose ps
+          
+          # 健康检查
+          if docker-compose exec -T orderbot python -c "print('Bot is running')" 2>/dev/null; then
+            echo "✅ 部署成功！机器人服务正常运行"
+          else
+            echo "❌ 部署失败！机器人服务异常"
+            docker-compose logs --tail=20 orderbot
+            exit 1
+          fi
+
+  # Docker镜像部署
+  deploy-docker:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deployment_type == 'docker'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+        docker tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} ${{ env.IMAGE_NAME }}:latest
+
+    - name: Save Docker image
+      run: |
+        docker save -o ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        gzip ${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar
+
+    - name: Upload image to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        source: "${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar.gz"
+        target: "/home/${{ secrets.VPS_USER }}/"
+
+    - name: Deploy Docker container
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || 22 }}
+        script: |
+          set -e
+          
+          PROJECT_PATH="/home/${{ secrets.VPS_USER }}/DDGL_bot"
+          IMAGE_FILE="${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar.gz"
+          
+          echo "🐳 开始Docker部署..."
+          
+          # 创建项目目录
+          mkdir -p "$PROJECT_PATH"
+          cd "$PROJECT_PATH"
+          
+          # 解压并加载镜像
+          echo "📦 加载Docker镜像..."
+          gunzip -f "/home/${{ secrets.VPS_USER }}/$IMAGE_FILE"
+          docker load -i "/home/${{ secrets.VPS_USER }}/${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar"
+          
+          # 清理镜像文件
+          rm -f "/home/${{ secrets.VPS_USER }}/${{ env.IMAGE_NAME }}-${{ env.IMAGE_TAG }}.tar"
+          
+          # 停止现有容器
+          echo "🛑 停止现有容器..."
+          docker stop orderbot || true
+          docker rm orderbot || true
+          
+          # 检查.env文件
+          if [ ! -f ".env" ]; then
+            echo "❌ 未找到.env文件！请先创建配置文件"
+            exit 1
+          fi
+          
+          # 启动新容器
+          echo "🚀 启动新容器..."
+          docker run -d \
+            --name orderbot \
+            --restart unless-stopped \
+            --env-file .env \
+            -v $(pwd)/data:/app/data \
+            -v $(pwd)/logs:/app/logs \
+            -v $(pwd)/images:/app/images \
+            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          
+          # 等待容器启动
+          echo "⏳ 等待容器启动..."
+          sleep 15
+          
+          # 检查容器状态
+          echo "🔍 检查容器状态..."
+          docker ps --filter name=orderbot
+          
+          # 健康检查
+          if docker exec orderbot python -c "print('Bot is running')" 2>/dev/null; then
+            echo "✅ 部署成功！机器人服务正常运行"
+          else
+            echo "❌ 部署失败！机器人服务异常"
+            docker logs --tail=20 orderbot
+            exit 1
+          fi
+
+  # 部署通知
+  notify:
+    needs: [deploy-git, deploy-docker]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify deployment result
+      uses: appleboy/telegram-action@master
+      if: secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        message: |
+          🚀 DDGL Bot 部署结果
+          
+          📋 详情：
+          - 仓库: ${{ github.repository }}
+          - 分支: ${{ github.ref_name }}
+          - 提交: ${{ github.sha }}
+          - 部署类型: ${{ github.event.inputs.deployment_type || 'git' }}
+          - 环境: ${{ github.event.inputs.environment || 'production' }}
+          - 状态: ${{ job.status == 'success' && '✅ 成功' || '❌ 失败' }}
+          
+          🔗 查看详情: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

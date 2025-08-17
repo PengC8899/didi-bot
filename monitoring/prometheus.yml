@@ -1,0 +1,43 @@
+# Prometheus 监控配置
+# 用于监控 Telegram 订单管理机器人
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus 自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Docker 容器监控（需要 cAdvisor）
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # 机器人应用监控（如果应用暴露了 metrics 端点）
+  # - job_name: 'orderbot'
+  #   static_configs:
+  #     - targets: ['orderbot:8000']
+  #   metrics_path: /metrics
+  #   scrape_interval: 30s
+
+  # 系统监控（需要 node_exporter）
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #   scrape_interval: 30s
+
+# 告警规则（可选）
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093

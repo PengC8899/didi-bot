@@ -1,0 +1,1 @@
+# Marks tests as a package so relative imports (from ..core, ..tg, etc.) work under pytest.

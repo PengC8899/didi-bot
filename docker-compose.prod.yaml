@@ -1,0 +1,97 @@
+# 生产环境 Docker Compose 配置
+# 使用方法: docker-compose -f docker-compose.prod.yaml up -d
+
+services:
+  orderbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orderbot-prod
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite+aiosqlite:///./data/orderbot.db
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./images:/app/images
+      - ./logs:/app/logs
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # 网络安全配置
+    networks:
+      - orderbot-network
+    # 如果需要暴露端口（用于webhook模式）
+    # ports:
+    #   - "8000:8000"
+
+  # 可选：添加 PostgreSQL 数据库
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: orderbot-postgres
+  #   environment:
+  #     POSTGRES_DB: orderbot
+  #     POSTGRES_USER: orderbot
+  #     POSTGRES_PASSWORD: your_secure_password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - orderbot-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
+
+  # 可选：添加 Redis 缓存
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: orderbot-redis
+  #   restart: unless-stopped
+  #   networks:
+  #     - orderbot-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.25'
+  #         memory: 256M
+
+  # 可选：添加监控
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: orderbot-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - orderbot-network
+
+networks:
+  orderbot-network:
+    driver: bridge
+
+# 可选：持久化卷
+# volumes:
+#   postgres_data:
+#   redis_data:
