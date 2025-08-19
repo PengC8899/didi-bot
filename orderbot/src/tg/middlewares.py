@@ -4,8 +4,11 @@ import asyncio
 import time
 from typing import Any, Awaitable, Callable, Dict, Optional, Set, TypeVar
 
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter, TelegramServerError
+
 from ..config import Settings
 from ..utils.logging import log_error, log_info
+from ..utils.network import network_monitor, retry_with_backoff, default_retry_config
 
 Event = TypeVar("Event")
 Handler = Callable[[Event, Dict[str, Any]], Awaitable[Any]]
@@ -123,7 +126,20 @@ class ErrorHandlingMiddleware:
 
     async def __call__(self, handler: Handler, event: Event, data: Dict[str, Any]) -> Any:  # type: ignore[override]
         try:
-            return await handler(event, data)
+            # 使用网络重试机制执行处理器
+            return await retry_with_backoff(
+                handler,
+                event,
+                data,
+                retry_config=default_retry_config,
+                network_monitor=network_monitor
+            )
+        except (TelegramNetworkError, TelegramRetryAfter, TelegramServerError) as e:
+            actor_id = _extract_user_id(event)
+            log_error("handler.network_error", error=str(e), actor_tg_user_id=actor_id)
+            network_monitor.record_failure()
+            _safe_answer(event, "网络连接异常，请稍后重试", prefer_alert=hasattr(event, "data"))
+            return None
         except Exception as e:  # noqa: BLE001
             actor_id = _extract_user_id(event)
             log_error("handler.error", error=str(e), actor_tg_user_id=actor_id)

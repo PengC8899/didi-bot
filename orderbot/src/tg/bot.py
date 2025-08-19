@@ -15,6 +15,7 @@ from ..core.models import OrderStatus
 from ..services import order_service
 from ..services.user_management import UserManagementService
 from ..utils.logging import log_info, log_error
+from ..utils.network import network_health_checker
 from .middlewares import ErrorHandlingMiddleware, RateLimitMiddleware
 from .fsm import OrderCreationFlow
 from .keyboards import get_main_keyboard, get_order_list_keyboard, get_stats_keyboard, get_admin_list_keyboard, get_back_keyboard
@@ -493,6 +494,9 @@ async def setup_bot(dp: Dispatcher) -> None:
     # 初始化数据库
     await init_engine(settings.DATABASE_URL)
     
+    # 启动网络健康检查器
+    await network_health_checker.start()
+    
     # 注册中间件
     dp.message.middleware(ErrorHandlingMiddleware())
     dp.callback_query.middleware(ErrorHandlingMiddleware())
@@ -502,3 +506,14 @@ async def setup_bot(dp: Dispatcher) -> None:
     dp.include_router(router)
     
     log_info("bot.setup.completed")
+
+async def shutdown_bot() -> None:
+    """关闭机器人时的清理工作"""
+    # 停止网络健康检查器
+    await network_health_checker.stop()
+    
+    # 关闭数据库连接
+    from ..core.db import close_engine
+    await close_engine()
+    
+    log_info("bot.shutdown.completed")

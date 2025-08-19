@@ -9,27 +9,41 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=sqlite+aiosqlite:///./data/orderbot.db
+      - LOG_LEVEL=DEBUG
     volumes:
       - ./data:/app/data
       - ./images:/app/images
       - ./logs:/app/logs
-    restart: unless-stopped
+    restart: always
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 512M
+          cpus: '0.75'
+          memory: 768M
         reservations:
           cpus: '0.25'
           memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 120s
     healthcheck:
-      test: ["CMD", "python", "-c", "import asyncio; import sys; sys.exit(0)"]
+      test: ["CMD", "python", "healthcheck.py"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "20m"
+        max-file: "5"
+        compress: "true"
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    # 资源监控
+    labels:
+      - "monitoring.enabled=true"
+      - "monitoring.service=orderbot"

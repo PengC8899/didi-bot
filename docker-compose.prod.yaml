@@ -17,26 +17,47 @@ services:
       - ./data:/app/data
       - ./images:/app/images
       - ./logs:/app/logs
-    restart: unless-stopped
+    restart: always
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1G
+          cpus: '2.0'
+          memory: 2G
         reservations:
           cpus: '0.5'
           memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+        window: 300s
     healthcheck:
       test: ["CMD", "python", "healthcheck.py"]
       interval: 30s
-      timeout: 15s
-      retries: 3
-      start_period: 60s
+      timeout: 20s
+      retries: 5
+      start_period: 90s
     logging:
       driver: "json-file"
       options:
-        max-size: "50m"
-        max-file: "5"
+        max-size: "100m"
+        max-file: "10"
+        compress: "true"
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:unconfined
+    # 资源监控和标签
+    labels:
+      - "monitoring.enabled=true"
+      - "monitoring.service=orderbot"
+      - "environment=production"
+    # 进程限制
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
     # 网络安全配置
     networks:
       - orderbot-network
