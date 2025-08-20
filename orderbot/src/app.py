@@ -127,18 +127,18 @@ async def main() -> None:
     """Application entrypoint: start long polling bot."""
     settings = Settings()  # loads from env
 
+    # 确保日志目录存在
+    os.makedirs('/app/logs', exist_ok=True)
+    
     # Configure basic logging early
     logging.basicConfig(
         level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('logs/bot.log', encoding='utf-8'),
+            logging.FileHandler('/app/logs/bot.log', encoding='utf-8'),
             logging.StreamHandler()
         ]
     )
-    
-    # 确保日志目录存在
-    os.makedirs('logs', exist_ok=True)
     
     # 初始化进程监控器
     monitor_config = MonitorConfig(
