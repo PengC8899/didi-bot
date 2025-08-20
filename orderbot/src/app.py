@@ -43,13 +43,7 @@ async def create_bot(settings: Settings) -> Bot:
     )
     
     session = AiohttpSession(
-        timeout=timeout,
-        connector_kwargs={
-            'limit': 100,  # 连接池大小
-            'limit_per_host': 30,  # 每个主机的连接数
-            'ttl_dns_cache': 300,  # DNS缓存时间
-            'use_dns_cache': True,
-        }
+        timeout=timeout
     )
     
     bot = Bot(
