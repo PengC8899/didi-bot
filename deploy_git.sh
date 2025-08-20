@@ -5,9 +5,9 @@
 set -e  # 遇到错误立即退出
 
 # 配置变量（请根据实际情况修改）
-VPS_USER="your-username"          # VPS用户名
-VPS_HOST="your-vps-ip"            # VPS IP地址
-VPS_PATH="/home/$VPS_USER/DDGL_bot"  # VPS上的项目路径
+VPS_USER="ubuntu"          # VPS用户名
+VPS_HOST="18.142.231.74"            # VPS IP地址
+VPS_PATH="/home/$VPS_USER/didi-bot"  # VPS上的项目路径
 GIT_BRANCH="main"                 # Git分支名
 
 # 颜色输出
