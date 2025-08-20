@@ -8,6 +8,7 @@ set -e  # 遇到错误立即退出
 VPS_USER="ubuntu"          # VPS用户名
 VPS_HOST="18.142.231.74"            # VPS IP地址
 VPS_PATH="/home/$VPS_USER/didi-bot"  # VPS上的项目路径
+SSH_KEY="/Users/pccc/LT_bot/didi-bot/didi.pem"  # SSH密钥文件路径
 GIT_BRANCH="main"                 # Git分支名
 
 # 颜色输出
@@ -155,7 +156,7 @@ echo '🎉 VPS部署完成！'
 "
 
     # 执行远程脚本
-    if ! ssh "$VPS_USER@$VPS_HOST" "$REMOTE_SCRIPT"; then
+    if ! ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "$REMOTE_SCRIPT"; then
         print_error "VPS部署失败！"
         exit 1
     fi
@@ -183,7 +184,7 @@ else
 fi
 "
     
-    ssh "$VPS_USER@$VPS_HOST" "$VERIFY_SCRIPT"
+    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "$VERIFY_SCRIPT"
     
     print_success "部署验证完成"
 }
