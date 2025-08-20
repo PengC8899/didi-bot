@@ -65,8 +65,6 @@ async def init_engine(database_url: str, max_retries: int = 3) -> None:
                 if database_url.startswith(("sqlite", "sqlite+aiosqlite")):
                     engine_kwargs.update({
                         "poolclass": StaticPool,
-                        "pool_size": 1,
-                        "max_overflow": 0,
                     })
                 else:
                     # PostgreSQL或其他数据库的连接池配置
