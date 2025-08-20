@@ -137,6 +137,10 @@ fi
 echo '🛑 停止现有服务...'
 docker-compose down || true
 
+# 强制删除可能存在的容器
+echo '🗑️  清理旧容器...'
+docker rm -f orderbot || true
+
 # 重新构建并启动
 echo '🔨 重新构建并启动服务...'
 docker-compose up -d --build
