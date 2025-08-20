@@ -35,12 +35,8 @@ def signal_handler(signum, frame):
 
 async def create_bot(settings: Settings) -> Bot:
     """创建Bot实例，配置网络超时和重试"""
-    # 配置HTTP会话，设置超时和重试
-    timeout = ClientTimeout(
-        total=30,  # 总超时时间
-        connect=10,  # 连接超时
-        sock_read=20  # 读取超时
-    )
+    # 使用简化的超时配置
+    timeout = ClientTimeout(total=30)
     
     session = AiohttpSession(
         timeout=timeout
