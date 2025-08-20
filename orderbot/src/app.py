@@ -21,7 +21,7 @@ except ImportError:
 from .config import Settings
 from .tg.bot import setup_bot, shutdown_bot
 from .utils.logging import log_info, log_error
-from .utils.process_monitor import setup_global_monitor, shutdown_global_monitor, MonitorConfig
+from .utils.process_monitor import setup_bot_monitoring, shutdown_monitoring, MonitorConfig
 
 # 全局变量用于优雅关闭
 bot_instance: Optional[Bot] = None
@@ -148,7 +148,7 @@ async def main() -> None:
         max_restarts=5,  # 最大重启次数
         restart_window=3600  # 重启窗口期（1小时）
     )
-    await setup_global_monitor(monitor_config)
+    await setup_bot_monitoring([], None)
     log_info("process.monitor.initialized")
     
     # 注册信号处理器
@@ -166,7 +166,7 @@ async def main() -> None:
         log_info("bot.shutdown")
         # 关闭进程监控器
         try:
-            await shutdown_global_monitor()
+            await shutdown_monitoring()
             log_info("process.monitor.shutdown")
         except Exception as e:
             log_error("process.monitor.shutdown_error", error=str(e))
