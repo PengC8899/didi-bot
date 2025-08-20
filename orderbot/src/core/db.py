@@ -22,7 +22,8 @@ _db_lock = asyncio.Lock()
 
 def _configure_sqlite_pragmas(dbapi_connection, connection_record):
     """配置SQLite性能优化参数"""
-    with dbapi_connection.cursor() as cursor:
+    cursor = dbapi_connection.cursor()
+    try:
         # 启用WAL模式以提高并发性能
         cursor.execute("PRAGMA journal_mode=WAL")
         # 设置同步模式为NORMAL以平衡性能和安全性
@@ -35,6 +36,8 @@ def _configure_sqlite_pragmas(dbapi_connection, connection_record):
         cursor.execute("PRAGMA foreign_keys=ON")
         # 设置忙等待超时（毫秒）
         cursor.execute("PRAGMA busy_timeout=30000")
+    finally:
+        cursor.close()
 
 
 async def init_engine(database_url: str, max_retries: int = 3) -> None:
