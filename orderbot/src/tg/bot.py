@@ -21,12 +21,14 @@ from .fsm import OrderCreationFlow
 from .keyboards import get_main_keyboard, get_order_list_keyboard, get_stats_keyboard, get_admin_list_keyboard, get_back_keyboard
 
 
-router = Router()
 settings = Settings()
 
 # 图片存储目录
 IMAGE_DIR = "/app/images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
+
+
+router = Router()
 
 
 @router.message(Command("start"))
@@ -489,6 +491,8 @@ async def on_photo(msg: Message, state: FSMContext) -> None:
         log_error("image.upload.failed", error=str(e))
 
 
+
+
 async def setup_bot(dp: Dispatcher) -> None:
     """设置机器人"""
     # 初始化数据库
@@ -502,7 +506,7 @@ async def setup_bot(dp: Dispatcher) -> None:
     dp.callback_query.middleware(ErrorHandlingMiddleware())
     dp.message.middleware(RateLimitMiddleware())
     
-    # 注册路由
+    # 注册路由器（每次都是新的Dispatcher实例，所以不会重复）
     dp.include_router(router)
     
     log_info("bot.setup.completed")
